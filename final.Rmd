@@ -1,0 +1,187 @@
+---
+title: "Final Project: Philadelphia Incident Report Analysis"
+author: "Grace Herr"
+date: "May 18, 2018"
+output: html_document
+---
+
+In this project, we will be looking at a dataset of Philadelphia Crime Reports from this source: https://www.opendataphilly.org/dataset/crime-incidents/resource/c57a9de2-e300-468a-9a20-3e64e5b9b2da This dataset contains 10 years of incident reports in Philadeplphia, 2006 to 2017, but 2017 is not completed in the dataset so it will not be affecting our predictions. It includes the time of dispatch, the date, type of crime. longitude, and latitude. This dataset will allow us to explore the trends in the occurrence of these crimes and if we can make assumptions about when and where incidents will occur most often. This dataset can also show where the indicents occur the most often. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(leaflet)
+```
+
+Here we import the dataset from the above source. This .csv file can be downloaded from the above source. As we can see below in the table. There are some instances where there is missing data, also the month field has both month and day combined. These will be places where the dataset will need some tidying. 
+```{r prep1}
+crime_tab <- read_csv("~/Downloads/crime.csv")
+crime_tab
+```
+
+Here we will clean up the data. This involves deleting any entries that are missing important information as well as manipulating the fields into useful ones. Here we will separate the month and day in order to use them easier. Now we will be able to start our analysis of average crimes per month and day with a clean dataset. The year and month are made to be factors so that they are not seen as integers and kept in their own distinct values. 
+
+```{r manipulae}
+crime_tab_tidy<- crime_tab %>%
+  na.omit() %>%
+  separate(col = Month, into = c("Year", "Month"), sep = "-")
+
+crime_tab_tidy$Year <- as.factor(crime_tab_tidy$Year) 
+crime_tab_tidy$Month <- as.factor(crime_tab_tidy$Month)
+crime_tab_tidy
+```
+
+We will not plot the number of crimes for each month. First we group the tidy dataset by month and get the total number of incidents for each month. This can be seen in the month table now. Then we plot the month table using the ggplot function to create the bar graph below. It is seen that there are more incidents during the summer months but also there is an upspike in January. The month with the most incidents is August with a count of 202685. Next is July with 200031. The month with the least incidents is February with 161144, the second least is December with 163512.
+
+```{r}
+month <- crime_tab_tidy %>% 
+  group_by(Month) %>% 
+  dplyr::summarize(count = n())
+month
+
+ggplot(month, aes(Month, month$count)) + 
+  geom_bar(stat = "identity") + 
+  ggtitle("Crime Incidents for Each Month") + 
+  xlab("Month") + 
+  ylab("Count")
+
+```
+
+We will now look at the total number of incident for each day. First we will extract the day from the Date field. We see below after extracting the day from the date, we have a new field that has the day value for each incident reported in the crime_tab_tidy table. Then we will group the dataset by the Day and get the count of the number of incidents for that day. This is all graphed using the ggplot function in a line graph. We will then see that the days with the most incidents are the 19th and 21st. 
+
+```{r}
+crime_tab_tidy$Day <- day(crime_tab_tidy$Dispatch_Date)
+crime_tab_tidy
+
+day <- crime_tab_tidy %>% 
+  group_by(Day) %>% 
+  dplyr::summarize(count = n())
+day
+
+ggplot(day, aes(Day, day$count)) + 
+  geom_line() + 
+  ggtitle("Crime Incidents for Each Day") + 
+  xlab("Day") + 
+  ylab("Count") 
+```
+
+Here we will plot the relationship between number of incidents for month and day. First we group the data by month and day using the group_by function, then we summarize the data to get the total number of incidents for each month and day combo. This can be seen in the month_and_day table. Then we plot the data in this table using ggplot to make a line graph. Ggplot has a color option in the aesthetic section, this allows us to see a different color for each month. From the resulting plot, it is hard to tell if there is any major correlation between the number of incidents by the month and day, it appears that there is none. Also due to each month not having 31 days, the line graph appears to be very varied in the total incidents at the end of the moth. 
+
+```{r}
+month_and_day <- crime_tab_tidy %>% 
+  group_by(Month, Day) %>% 
+  dplyr::summarize(count = n())
+month_and_day
+
+ggplot(month_and_day, aes(Day, month_and_day$count, color = Month)) + 
+  geom_line() + 
+  ggtitle("Crime Incidents for Month and Day")  + 
+  ylab("Count") + 
+  xlab("Day")
+```
+
+We will continue our analysis to try to find a correlation in this dataset. We will now look at the number of incidents for each year. First we group the tidy dataset by Year and then get the total number of incidents for each year. Then we plot the data as we did above using the ggplot function to make the bar graph. Here we see the number of incidents goes down as the years progress. As mentioned above, 2017 is not complete in the dataset so it does not contribute to the trend fully.
+
+```{r}
+year <- crime_tab_tidy %>% 
+  group_by(Year) %>% 
+  dplyr::summarize(count = n())
+year
+
+ggplot(year, aes(Year, year$count)) + 
+  geom_bar(stat = "identity") +
+  ggtitle("Crime Incidents  for each Year") + 
+  xlab("Year") + 
+  ylab("Count") 
+```
+
+Now we will look at the indicdent each month per year. First we use the tidy dataset again and group it by year and month, then we get the total count of incidents for each. We then have to convert the month to an integer instead of a factor to plot our data in a line graph. We use scale_x_continuous to relabel the x-axis, because the months are integers, the x-axis is labeled automatically and does not show each month separately. Here we see a high concentration of incidents in 2006-2008 around May through August. This shows that crimes are more likely to occur in the summer months when it is warm out. 
+
+```{r}
+year_and_month <- crime_tab_tidy %>% 
+  group_by(Year, Month) %>% 
+  dplyr::summarize(count = n())
+year_and_month
+
+year_and_month$Month <- as.integer(year_and_month$Month)
+
+ggplot(year_and_month, aes(Month, year_and_month$count, color = Year)) + 
+  geom_line() +
+  ggtitle("Crime Incidents for Year and Month")  + 
+  scale_x_continuous(breaks = 0:12) +
+  ylab("Count") + 
+  xlab("Month") 
+```
+
+After looking at the Month, Day and Year fields, we see only little correlation with those fields. We have seen that crime has decreased over the years and also that there is a correlation between the frequency of incidents and the month of the year. We now will look to see if there is a correlation between the time of the crime and the years. First we group the tidy dataset by Year and hour and count the number of incidents. Then we use ggplot to plot the line graph. We use scale_x_continuous to label the x-axis with the labels 0 to 23 for each hour. Because Hour is an integer and not a factor, the a-axis would be labelled automatically and would not show each individual hour and make the graph hard to read.  Here we see that almost every year has a similar distribution of crime over the hours. The majority of crimes occur around 3:pm through 3:00 am. Beacuse the data for 2017 is not complete, the number of incidents is much lower and does not fit into the trend.
+```{r}
+hour_and_year <- crime_tab_tidy %>% 
+  group_by(Year , Hour) %>%
+  dplyr::summarize(count = n())
+hour_and_year
+
+ggplot(hour_and_year, aes(Hour, hour_and_year$count, color = Year)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = 0:23) +
+  ggtitle("Crime Incidents for Hour and year") + 
+  ylab("Count")+
+  xlab("Hour")
+```
+
+Next we will look at the number of incidents by hour and month. We group the dataset by moneth and hour, then get the total counts again. Then we plot the data in a line graph and relabel the x-axis as seen above. Here we see the same trend as the above plot by year and hour. This shows that this is a consistent trend over the years and months. Incidents are reported most around 3:00 pm to 3:00 am. The lowest time of incidents is around 2-7 am.
+
+```{r}
+hour_and_month <- crime_tab_tidy %>% 
+  group_by(Month,Hour) %>% 
+  dplyr::summarize(count = n())
+
+ggplot(hour_and_month, aes(Hour, hour_and_month$count, color = Month)) + 
+  geom_line() + 
+  ggtitle("Crime Incidents for Month and Hour") + 
+  scale_x_continuous(breaks = 0:23)+ 
+  xlab("Hour of the Day") + 
+  ylab("Total Crimes") 
+```
+
+Now that we see when crime is most frequent in Philadelphia, we will explore where it occurs most as well. First we will take a sample of the crime_table_tidy by using sample_n(), this will take 2000 random entries from the table. While this data can not predict where or when a crime will be reported; however, it could identify areas that have a high number of incidents and may be avoided around the times of high crime. To create this map, I found the coordinates for philadelphia, then using zoom, we can choose how close up we want to be. The lower the zoom, the less zoomed in we are. Now that we have the map, we will add markers where crime has occured and see if there is an area where crime occurs the most. 
+
+Looking at the resulting map, we see some areas where ther are dense circles. However, we cannot tell exactly what areas have the most incidents. 
+```{r}
+data <- sample_n(crime_tab_tidy, 2000)
+
+philly_map <- leaflet(data) %>%
+  addTiles() %>%
+  setView(lat=39.952583, lng= -75.165222, zoom=11) %>%
+  addCircles(lat= data$Lat, lng = data$Lon, color= "red")
+philly_map
+```
+
+Now, we will look at the data and get the locations with the most crime incidents reported. The dataset is grouped by the block where the incedent occurred, has each location's number of incidents counted, then the data is arranged by descending count. We group by block, latitude, and longtitude so we can place markers at these locations in our next step. We can see below that the 4600 Block of East Roosevelt has the most crime incidents. 
+
+```{r}
+top_50 <- crime_tab_tidy %>% 
+  group_by(Location_Block, Lat, Lon) %>% 
+  summarize(count = n()) %>% 
+  arrange(desc(count))
+top_50 <- head(top_50, 50)
+top_50
+```
+
+Now, we are going to place markers on our Philadelphia map at only these 50 locations. This is acheived by using the addCircles function, we must specify what the latitude and longitude are for each marker. We also use addPopups to show where the 4600 Block of East Roosevelt Blvd, the location with the most incidents. On the map, we can see some examples here there are markers close together. This includes 6 near 13 and 15th Street near City Hall, as well as 6 markers near East Tusculum Street and East Gurney Street. It would appear that despite one of these locations not having the most crime incidents, they have a higher occurrence of crime in its vicinity. The location with the hihgest count does not have a high concentration of crime nearby. 
+
+```{r}
+philly_map <- leaflet(top_50) %>%
+  addTiles() %>%
+  setView(lat=39.952583, lng= -75.165222, zoom=11) %>%
+  addCircles(lat= top_50$Lat, lng = top_50$Lon, color= "red") %>%
+  addPopups(lat= head(top_50, 1)$Lat, lng = head(top_50, 1)$Lon, "Highest Crime Count",
+    options = popupOptions(closeButton = FALSE))
+philly_map
+```
+
+This analysis of the incident reports for Philadelphia has shown that crime occurs more frequenty in the afternoon and night, and there are some areas that have a higher concentration of crime than other. This analysis may be of use to some people looking to see the distribution of crime over the past 10 years in Philadelphia. This analysis also shows that it is often possible to find some trend or correlation within the data after extensively exploring it. In the beginning of this tutorial, we saw some examples where there was no signifigance in the plot. However, as we moved through the data, we found some trends we could look into. 
